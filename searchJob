@@ -1,0 +1,83 @@
+import requests
+from bs4 import BeautifulSoup
+import selenium
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+import pandas as pd
+
+s=Service("C:\\Users\\PJ\\AppData\\Local\\Programs\\Python\\Python39\\geckodriver.exe")
+browser = webdriver.Firefox(service=s)
+url = "https://hk.jobsdb.com/hk/search-jobs/analyst/1"
+browser.get(url)
+soup = BeautifulSoup(browser.page_source,'lxml')
+soup
+
+postDate = soup.find_all('time')
+#print ('length = ', len(postDate))
+#postDate
+
+jobTitle = soup.find_all('div', class_="sx2jih0 _2j8fZ_0 sIMFL_0 _1JtWu_0")
+#print ('length = ', len(jobTitle))
+#jobTitle
+
+companyName = soup.find_all(class_=["sx2jih0 sx2jihb _1p9OP","sx2jih0 zcydq8s zcydq82u"])
+for tag in companyName:
+    if tag.has_attr('rel') or tag.string == "Company Confidential":
+        continue
+    else:
+        companyName.remove(tag)
+#print ('length = ', len(company))
+#company[14].text
+
+#jobNum = 0
+#for jobs in jobTitle:
+#    print (jobNum+1, jobTitle[jobNum].text + " ; " + company[jobNum].text)
+#    jobNum = jobNum +1
+
+#page = soup.find_all('option')[-4].text
+#page
+
+def searchJob(keyword):
+    url = "https://hk.jobsdb.com/hk/search-jobs/{}/1".format(keyword)
+    browser.get(url)
+    soup = BeautifulSoup(browser.page_source,'lxml')
+    page = int(soup.find_all('option')[-4].text)
+    print (page)
+    #url = "https://hk.jobsdb.com/hk/search-jobs/{}/{}".format(keyword,page)
+    #search=requests.get(url)
+    #soup = BeautifulSoup(search.content,'html.parser')
+    #soup
+    jobList = []
+    blackList = []
+    for i in range(1,10):
+        jobNum = 0
+        blackListNum = 0
+        url = "https://hk.jobsdb.com/hk/search-jobs/{}/{}".format(keyword,i)
+        print (url)
+        browser.get(url)
+        soup = BeautifulSoup(browser.page_source,'lxml')
+        postDate = soup.find_all('time')
+        jobTitle = soup.find_all('div', class_="sx2jih0 _2j8fZ_0 sIMFL_0 _1JtWu_0")
+        company = soup.find_all(class_=["sx2jih0 sx2jihb _1p9OP","sx2jih0 zcydq8s zcydq82u"])
+        for tag in company:
+            if tag.has_attr('rel') or tag.string == "Company Confidential":
+                continue
+            else:
+                company.remove(tag)
+        for jobs in jobTitle:
+            if (company[jobNum].text in blackList):
+                jobNum = jobNum +1
+                blackListNum = blackListNum + 1
+            else:
+                jobDetails = []
+                jobDetails.append(jobNum+1)
+                jobDetails.append(postDate[jobNum].text)
+                jobDetails.append(jobTitle[jobNum].text)
+                jobDetails.append(company[jobNum].text)
+                #print (jobNum+1, postDate[jobNum].text + " ; " + jobTitle[jobNum].text + " ; " + company[jobNum].text)
+                #print (jobDetails)
+                jobList.append(jobDetails)
+                jobNum = jobNum +1
+    return jobList
+    
+data = searchJob("analyst")

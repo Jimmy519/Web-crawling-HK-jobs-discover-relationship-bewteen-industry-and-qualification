@@ -1,83 +1,182 @@
+
+
 import requests
 from bs4 import BeautifulSoup
 import selenium
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
-import pandas as pd
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+import time
+# from selenium.webdriver.common.action_chains import ActionChains
 
 s=Service("C:\\Users\\PJ\\AppData\\Local\\Programs\\Python\\Python39\\geckodriver.exe")
 browser = webdriver.Firefox(service=s)
+browser.maximize_window()
+
+# trial
 url = "https://hk.jobsdb.com/hk/search-jobs/analyst/1"
 browser.get(url)
 soup = BeautifulSoup(browser.page_source,'lxml')
-soup
+details = browser.find_elements(By.TAG_NAME,'article')
+browser.execute_script ("arguments[0].click();", details[0])
+try:
+    lastElement = WebDriverWait(browser, 30).until(
+                    EC.element_to_be_clickable((By.LINK_TEXT, "Report this job ad"))
+                    )
 
-postDate = soup.find_all('time')
-#print ('length = ', len(postDate))
-#postDate
+except:
+    print (str(0) + 'timeout')
+soup = BeautifulSoup(browser.page_source,'lxml')
 
-jobTitle = soup.find_all('div', class_="sx2jih0 _2j8fZ_0 sIMFL_0 _1JtWu_0")
-#print ('length = ', len(jobTitle))
-#jobTitle
+def get_additionalInfo(soup, dictionary):
+    additionalInfoRaw = soup.find_all(class_="sx2jih0 zcydq82q _18qlyvc0 _18qlyvcv _18qlyvc3 _1d0g9qk4 _18qlyvc9")
+    # print (additionalInfoRaw)
 
-companyName = soup.find_all(class_=["sx2jih0 sx2jihb _1p9OP","sx2jih0 zcydq8s zcydq82u"])
-for tag in companyName:
-    if tag.has_attr('rel') or tag.string == "Company Confidential":
-        continue
+    for tag in additionalInfoRaw:
+        dictionary[tag.get_text()] = tag.find_next('span').get_text()
+    
+# additionalInfoRaw = {}
+# for tag in additionalInfoRaw:
+#     additionalInfoRaw[tag.get_text()] = tag.find_next('span').get_text()
+# print (additionalInfo)
+
+def get_jobDetails(soup):
+    jobDetails = soup.find(class_='vDEj0_0')
+    jobDescription = jobDetails.find_all(text=True)
+    fullJobDescription = []
+    for text in jobDescription:
+        fullJobDescription.append(text.text)
+    return fullJobDescription
+
+# get_jobDetails(soup)
+
+def get_postDate(soup, jobNum):
+    postDate = soup.find_all('time')
+    return postDate[jobNum].text
+
+# print ('length = ', len(postDate))
+# postDate
+
+def get_jobTitle(soup, jobNum):
+    jobTitle = soup.find_all('div', class_="sx2jih0 _2j8fZ_0 sIMFL_0 _1JtWu_0")                        
+    return jobTitle[jobNum].text
+
+# print ('length = ', len(jobTitle))
+# jobTitle
+
+def get_companyName(soup, jobNum):
+    companyName = soup.find_all(class_=["sx2jih0 sx2jihb _1p9OP","sx2jih0 zcydq8s zcydq82u"])
+#     print ('length = ', len(companyName))
+    for tag in companyName:
+        if tag.has_attr('rel') or tag.string == "Company Confidential":
+            continue
+        else:   
+            companyName.remove(tag)
+    return companyName[jobNum].text
+
+# get_companyName(soup,0)
+
+def get_lastPage(soup):
+    page = soup.find_all('option')[-4].text
+    return page
+
+def searchJob(pageToScrap, keyword=""):
+    if keyword == "":
+        mainurl = "https://hk.jobsdb.com/hk/en/Search/FindJobs?JSRV=1&page="
     else:
-        companyName.remove(tag)
-#print ('length = ', len(company))
-#company[14].text
-
-#jobNum = 0
-#for jobs in jobTitle:
-#    print (jobNum+1, jobTitle[jobNum].text + " ; " + company[jobNum].text)
-#    jobNum = jobNum +1
-
-#page = soup.find_all('option')[-4].text
-#page
-
-def searchJob(keyword):
-    url = "https://hk.jobsdb.com/hk/search-jobs/{}/1".format(keyword)
-    browser.get(url)
-    soup = BeautifulSoup(browser.page_source,'lxml')
-    page = int(soup.find_all('option')[-4].text)
-    print (page)
-    #url = "https://hk.jobsdb.com/hk/search-jobs/{}/{}".format(keyword,page)
-    #search=requests.get(url)
-    #soup = BeautifulSoup(search.content,'html.parser')
-    #soup
-    jobList = []
-    blackList = []
-    for i in range(1,10):
-        jobNum = 0
-        blackListNum = 0
-        url = "https://hk.jobsdb.com/hk/search-jobs/{}/{}".format(keyword,i)
-        print (url)
+        mainurl = "https://hk.jobsdb.com/hk/search-jobs/{}/".format(keyword)
+        
+    jobList = [] 
+    blackList = ["Michael Page","Manpower Services (Hong Kong) Limited","Randstad Hong Kong Limited","Page Group Hong Kong","Ambition","ConnectedGroup Limited","Page Personnel","Hays","JFE Consulting Limited","Robert Walters (HK)"]
+    
+    for i in range(1,pageToScrap):
+        url = mainurl + str(i)
+        print ('Scraping page ' + str(i) + '...')
         browser.get(url)
         soup = BeautifulSoup(browser.page_source,'lxml')
-        postDate = soup.find_all('time')
-        jobTitle = soup.find_all('div', class_="sx2jih0 _2j8fZ_0 sIMFL_0 _1JtWu_0")
-        company = soup.find_all(class_=["sx2jih0 sx2jihb _1p9OP","sx2jih0 zcydq8s zcydq82u"])
-        for tag in company:
-            if tag.has_attr('rel') or tag.string == "Company Confidential":
+
+        for jobNum in range(0,30):
+            if (get_companyName(soup,jobNum) in blackList):
+                print ('skipped')
                 continue
             else:
-                company.remove(tag)
-        for jobs in jobTitle:
-            if (company[jobNum].text in blackList):
-                jobNum = jobNum +1
-                blackListNum = blackListNum + 1
-            else:
-                jobDetails = []
-                jobDetails.append(jobNum+1)
-                jobDetails.append(postDate[jobNum].text)
-                jobDetails.append(jobTitle[jobNum].text)
-                jobDetails.append(company[jobNum].text)
-                #print (jobNum+1, postDate[jobNum].text + " ; " + jobTitle[jobNum].text + " ; " + company[jobNum].text)
-                #print (jobDetails)
-                jobList.append(jobDetails)
-                jobNum = jobNum +1
+# Method 1, normal selenium, sometimes error will occur as other class may obscure
+#                 details = browser.find_elements(By.TAG_NAME,'article')
+#                 details[jobNum].click()
+
+# Method 2, javascript executor with EC, work perfect
+                details = browser.find_elements(By.TAG_NAME,'article')
+                browser.execute_script ("arguments[0].click();", details[jobNum])
+                try:
+                    lastElement = WebDriverWait(browser, 30).until(
+                                    EC.element_to_be_clickable((By.LINK_TEXT, "Report this job ad"))
+                                    )
+                except:
+                    print (str(jobNum) + 'timeout')
+                soup = BeautifulSoup(browser.page_source,'lxml')
+
+#Method 3, actionchain, sometimes error will occur, slow as well
+#                 details = browser.find_elements(By.TAG_NAME,'article')
+#                 browser.execute_script("arguments[0].scrollIntoView();", details[jobNum])
+#                 ActionChains(browser).move_to_element(details[jobNum]).click().perform()
+
+                jobInstance = {}
+                jobInstance['Job Details'] = get_jobDetails(soup)
+                jobInstance['Post Date'] = get_postDate(soup, jobNum)
+                jobInstance['Job Title'] = get_jobTitle(soup, jobNum)
+                jobInstance['Company Name'] = get_companyName(soup, jobNum)
+                jobInstance['Link'] = url
+                get_additionalInfo(soup, jobInstance)
+                
+#                 for key in jobInstance:
+#                     print (key)
+#                     print (jobInstance[key])
+#                     print ()
+                
+                jobList.append(jobInstance)
+        
+        print ('Finished page ' + str(i) + '...')
+    print ('Ended')
     return jobList
-    
-data = searchJob("analyst")
+
+data = searchJob(30)
+
+import pandas as pd
+pd.plotting.register_matplotlib_converters()
+import matplotlib.pyplot as plt
+%matplotlib inline
+import seaborn as sns
+
+#Create dataframe using scrapped result
+# df = pd.DataFrame(data)
+# df.to_csv(r'C:\Users\PJ\Desktop\test.csv')
+
+# Read dataframe from path
+df = pd.read_csv(r'C:\Users\PJ\Desktop\test.csv')
+df.columns = df.columns.str.replace(' ', '_')
+df.head()
+
+#Basic Requirement of the Most Recent Jobs
+df1 = df.groupby(["Qualification"]).count()
+# print (df1.head())
+plt.figure(figsize=(15, 10))
+plt.title("Basic Requirement of the Most Recent Jobs")
+sns.barplot(x=df1.index,y="Unnamed:_0",data=df1)
+
+#Industries That Only Require School Cert
+df2 = df.loc[df["Qualification"]=="School Certificate"]
+# print (df2.shape)
+df3 = df2.groupby("Industry").count()
+df4 = df3.loc[df3["Unnamed:_0"]>=4]
+# print (df4)
+plt.figure(figsize=(15, 10))
+sns.barplot(x=df4.index,y="Unnamed:_0",data=df4)
+plt.title("Industries That Only Require School Cert")
+plt.xticks(rotation = 30)
+ 
+
+ 
+
